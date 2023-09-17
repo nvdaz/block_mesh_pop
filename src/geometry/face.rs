@@ -4,8 +4,10 @@ use super::{axis::AxisPermutation, quad::UnorientedQuad};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct OrientedBlockFace {
-    pub n_sign: i32,
-    pub parity: i32,
+    pub(crate) is_front: bool,
+    pub(crate) is_even: bool,
+    pub(crate) n_sign: i32,
+    pub signed_n: IVec3,
     pub n: UVec3,
     pub u: UVec3,
     pub v: UVec3,
@@ -13,19 +15,22 @@ pub struct OrientedBlockFace {
 
 impl OrientedBlockFace {
     pub const FACES: [Self; 6] = [
-        Self::new(-1, AxisPermutation::Xzy),
-        Self::new(-1, AxisPermutation::Yzx),
-        Self::new(-1, AxisPermutation::Zxy),
-        Self::new(1, AxisPermutation::Xzy),
-        Self::new(1, AxisPermutation::Yzx),
-        Self::new(1, AxisPermutation::Zxy),
+        Self::new(false, AxisPermutation::Xzy),
+        Self::new(false, AxisPermutation::Yzx),
+        Self::new(false, AxisPermutation::Zxy),
+        Self::new(true, AxisPermutation::Xzy),
+        Self::new(true, AxisPermutation::Yzx),
+        Self::new(true, AxisPermutation::Zxy),
     ];
 
-    const fn new(n_sign: i32, permutation: AxisPermutation) -> Self {
+    #[inline]
+    const fn new(is_front: bool, permutation: AxisPermutation) -> Self {
         let [n_axis, u_axis, v_axis] = permutation.axes();
         Self {
-            n_sign,
-            parity: permutation.parity(),
+            is_front: is_front,
+            is_even: permutation.is_even(),
+            n_sign: if is_front { 1 } else { -1 },
+            signed_n: n_axis.get_signed_vector(is_front),
             n: n_axis.get_unit_vector(),
             u: u_axis.get_unit_vector(),
             v: v_axis.get_unit_vector(),
@@ -33,13 +38,8 @@ impl OrientedBlockFace {
     }
 
     #[inline]
-    pub(crate) fn signed_normal(&self) -> IVec3 {
-        self.n.as_ivec3() * self.n_sign
-    }
-
-    #[inline]
-    pub fn quad_mesh_indices(&self, start: u32) -> [u32; 6] {
-        let counter_clockwise = self.n_sign * self.parity > 0;
+    pub const fn quad_mesh_indices(&self, start: u32) -> [u32; 6] {
+        let counter_clockwise = self.is_front == self.is_even;
 
         if counter_clockwise {
             [start, start + 1, start + 2, start + 1, start + 3, start + 2]
@@ -55,7 +55,7 @@ impl OrientedBlockFace {
         let w_vec = self.u * quad.width;
         let h_vec = self.v * quad.height;
 
-        let minu_minv = if self.n_sign > 0 {
+        let minu_minv = if self.is_front {
             quad.minimum + n_vec
         } else {
             quad.minimum
@@ -63,8 +63,6 @@ impl OrientedBlockFace {
         let maxu_minv = minu_minv + w_vec;
         let minu_maxv = minu_minv + h_vec;
         let maxu_maxv = minu_minv + w_vec + h_vec;
-
-        // println!("C- {:?} {:?}", minu_minv, maxu_maxv);
 
         [minu_minv, maxu_minv, minu_maxv, maxu_maxv]
     }
@@ -82,6 +80,13 @@ impl OrientedBlockFace {
 
     #[inline]
     pub fn quad_mesh_normals(&self) -> [Vec3; 4] {
-        [self.signed_normal().as_vec3(); 4]
+        [self.signed_n.as_vec3(); 4]
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct FaceStrides {
+    pub(crate) n: u32,
+    pub(crate) u: u32,
+    pub(crate) v: u32,
 }

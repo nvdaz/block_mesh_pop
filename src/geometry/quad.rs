@@ -14,6 +14,7 @@ pub struct UnorientedRegularQuad {
 }
 
 impl From<UnorientedRegularQuad> for UnorientedQuad {
+    #[inline]
     fn from(value: UnorientedRegularQuad) -> Self {
         Self {
             minimum: value.minimum,
@@ -29,6 +30,7 @@ pub struct UnorientedUnitQuad {
 }
 
 impl From<UnorientedUnitQuad> for UnorientedRegularQuad {
+    #[inline]
     fn from(value: UnorientedUnitQuad) -> Self {
         Self {
             minimum: value.minimum,
@@ -38,6 +40,7 @@ impl From<UnorientedUnitQuad> for UnorientedRegularQuad {
 }
 
 impl From<UnorientedUnitQuad> for UnorientedQuad {
+    #[inline]
     fn from(value: UnorientedUnitQuad) -> Self {
         Self {
             minimum: value.minimum,

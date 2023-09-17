@@ -1,6 +1,5 @@
 use bevy::{
     input::mouse::MouseMotion,
-    pbr::wireframe::{Wireframe, WireframePlugin},
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
     window::PrimaryWindow,
@@ -9,9 +8,9 @@ use bevy_dolly::{
     prelude::{DollyCursorGrab, Fpv, Rig},
     system::Dolly,
 };
-use bevy_voxel_mesh::{
-    extract_lod_buffer, visible_faces_quads, ChunkShape, MeshVoxel, PopBuffer, QuadsBuffer,
-    VoxelVisibility,
+use block_mesh_pop::{
+    visible_faces_quads, ChunkShape, LodEasing, LodMaterial, LodMaterialPlugin, LodRenderPlugin,
+    MeshVoxel, PopBuffer, VisitedBuffer, VoxelVisibility, WrappedMaterial,
 };
 
 #[derive(Component)]
@@ -19,7 +18,12 @@ pub struct MainCamera;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, WireframePlugin, DollyCursorGrab))
+        .add_plugins((
+            DefaultPlugins,
+            LodRenderPlugin,
+            LodMaterialPlugin::<5, StandardMaterial>::default(),
+            DollyCursorGrab,
+        ))
         .add_systems(Startup, setup)
         .add_systems(Update, (Dolly::<MainCamera>::update_active, update_camera))
         .run();
@@ -27,20 +31,21 @@ fn main() {
 
 fn setup(
     mut commands: Commands,
+    mut lod_materials: ResMut<Assets<LodMaterial<5>>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     commands.spawn(PointLightBundle {
-        transform: Transform::from_xyz(25.0, 25.0, 25.0),
+        transform: Transform::from_xyz(48.0, 48.0, 48.0),
         point_light: PointLight {
             range: 200.0,
-            intensity: 8000.0,
+            intensity: 80000.0,
             ..default()
         },
         ..default()
     });
 
-    let transform = Transform::from_xyz(-48.0, 48.0, -48.0).looking_at(Vec3::splat(17.0), Vec3::Y);
+    let transform = Transform::from_xyz(48.0, 48.0, 48.0).looking_at(Vec3::splat(17.0), Vec3::Y);
 
     commands.spawn((
         MainCamera,
@@ -54,16 +59,20 @@ fn setup(
     ));
 
     let voxels = generate_voxels();
-    let mesh = generate_visible_faces_mesh(&voxels);
-    let material = StandardMaterial::from(Color::BLACK);
+    let (buckets, mesh) = generate_visible_faces_mesh(&voxels);
 
-    commands
-        .spawn(PbrBundle {
-            mesh: meshes.add(mesh),
-            material: materials.add(material),
-            ..default()
-        })
-        .insert(Wireframe);
+    commands.spawn((
+        meshes.add(mesh),
+        SpatialBundle::INHERITED_IDENTITY,
+        lod_materials.add(LodMaterial {
+            size: UVec3::splat(32),
+            max_lod: 5,
+            period: 128 / 2,
+            easing: LodEasing::Quadratic,
+            buckets: unsafe { std::mem::transmute(buckets) },
+        }),
+        WrappedMaterial(materials.add(StandardMaterial::from(Color::PURPLE))),
+    ));
 }
 
 fn generate_voxels() -> [Voxel; 34 * 34 * 34] {
@@ -82,36 +91,40 @@ fn generate_voxels() -> [Voxel; 34 * 34 * 34] {
     voxels
 }
 
-fn generate_visible_faces_mesh(voxels: &[Voxel]) -> Mesh {
-    let mut pop_buffer = PopBuffer::new();
-    let mut buffer = QuadsBuffer::new();
+fn generate_visible_faces_mesh(voxels: &[Voxel]) -> ([u32; 8], Mesh) {
+    let mut visited = VisitedBuffer::new(voxels.len());
+    let mut buffer = PopBuffer::new();
 
-    visible_faces_quads::<34, 34, 34, 4, _>(voxels, &mut pop_buffer);
+    visible_faces_quads::<34, 34, 34, 5, _>(voxels, &mut visited, &mut buffer);
 
-    let lod = 1;
-    extract_lod_buffer(&pop_buffer, &mut buffer, lod);
+    let buckets = buffer.get_buckets();
 
-    let num_indices = buffer.num_quads() * 6;
-    let num_vertices = buffer.num_quads() * 4;
+    let num_quads = buffer.num_quads();
+
+    let num_indices = num_quads * 6;
+    let num_vertices = num_quads * 4;
 
     let mut indices = Vec::with_capacity(num_indices);
     let mut positions = Vec::with_capacity(num_vertices);
     let mut normals = Vec::with_capacity(num_vertices);
+    let mut colors = Vec::with_capacity(num_vertices);
 
     for (face, quad) in buffer.iter_quads() {
         indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
-        positions.extend_from_slice(&face.quad_mesh_positions(quad, lod, 1.0));
+        positions.extend_from_slice(&face.quad_mesh_positions(quad, 0, 1.0));
         normals.extend_from_slice(&face.quad_mesh_normals());
+        colors.extend_from_slice(&[Vec4::ONE; 4]);
     }
 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![Vec2::ZERO; num_vertices]);
     mesh.set_indices(Some(Indices::U32(indices)));
 
-    mesh
+    (buckets, mesh)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

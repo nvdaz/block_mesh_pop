@@ -1,9 +1,8 @@
 use bevy_math::Vec3;
-use bevy_voxel_mesh::{
-    visible_greedy_quads, ChunkShape, GreedyVisitedBuffer, MergeVoxel, MeshVoxel, PopBuffer,
-    VoxelVisibility,
+use block_mesh_pop::{
+    greedy_quads, ChunkShape, MergeVoxel, MeshVoxel, PopBuffer, VisitedBuffer, VoxelVisibility,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Voxel {
@@ -35,23 +34,22 @@ impl MergeVoxel for Voxel {
 
 pub fn empty_mesh(c: &mut Criterion) {
     let voxels = [Voxel::EMPTY; 66 * 66 * 66];
-    let mut pop_buffer = PopBuffer::new();
-    let mut visited_buffer = GreedyVisitedBuffer::new(voxels.len());
+    let mut buffer = PopBuffer::new();
+    let mut visited = VisitedBuffer::new(voxels.len());
 
     c.bench_function("greedy empty mesh", |b| {
+        buffer.reset();
         b.iter(|| {
-            pop_buffer.reset();
-            visible_greedy_quads::<66, 66, 66, 1, _>(&voxels, &mut pop_buffer, &mut visited_buffer);
-            black_box(&pop_buffer);
+            greedy_quads::<66, 66, 66, 1, _>(&voxels, &mut visited, &mut buffer);
         })
     });
 }
 
 pub fn sphere_mesh(c: &mut Criterion) {
     let mut voxels = [Voxel::EMPTY; 66 * 66 * 66];
+    let mut buffer = PopBuffer::new();
+    let mut visited = VisitedBuffer::new(voxels.len());
 
-    let mut pop_buffer = PopBuffer::new();
-    let mut visited_buffer = GreedyVisitedBuffer::new(voxels.len());
     for i in 0..voxels.len() {
         let position = ChunkShape::<66, 66, 66>::delinearize(i as u32);
         let position = position.as_vec3();
@@ -63,36 +61,100 @@ pub fn sphere_mesh(c: &mut Criterion) {
     }
 
     c.bench_function("greedy sphere mesh", |b| {
+        buffer.reset();
         b.iter(|| {
-            pop_buffer.reset();
-            visible_greedy_quads::<66, 66, 66, 1, _>(&voxels, &mut pop_buffer, &mut visited_buffer);
-            black_box(&pop_buffer);
+            greedy_quads::<66, 66, 66, 1, _>(&voxels, &mut visited, &mut buffer);
         })
     });
 }
 
-// pub fn sphere_mesh_lod(c: &mut Criterion) {
-//     let mut voxels = [Voxel::EMPTY; 66 * 66 * 66];
-//     let mut buffer = UnitQuadsPopBuffer::new();
+pub fn sphere_mesh_lod(c: &mut Criterion) {
+    let mut voxels = [Voxel::EMPTY; 66 * 66 * 66];
+    let mut buffer = PopBuffer::new();
+    let mut visited = VisitedBuffer::new(voxels.len());
 
-//     for i in 0..voxels.len() {
-//         let position = ChunkShape::<66, 66, 66>::delinearize(i as u32);
-//         let position = position.as_vec3();
-//         let center = Vec3::splat(33.0);
+    for i in 0..voxels.len() {
+        let position = ChunkShape::<66, 66, 66>::delinearize(i as u32);
+        let position = position.as_vec3();
+        let center = Vec3::splat(33.0);
 
-//         if position.distance_squared(center) < 32.0 * 32.0 {
-//             voxels[i] = Voxel::FULL;
-//         }
-//     }
+        if position.distance_squared(center) < 32.0 * 32.0 {
+            voxels[i] = Voxel::FULL;
+        }
+    }
+    c.bench_function("greedy sphere mesh lod", |b| {
+        buffer.reset();
+        b.iter(|| {
+            greedy_quads::<66, 66, 66, 6, _>(&voxels, &mut visited, &mut buffer);
+        })
+    });
+}
 
-//     c.bench_function("sphere mesh lod", |b| {
-//         b.iter(|| {
-//             buffer.reset();
-//             visible_faces_quads::<66, 66, 66, 6, _>(&voxels, &mut buffer);
-//             black_box(&buffer);
-//         })
-//     });
-// }
+pub fn empty_mesh_small(c: &mut Criterion) {
+    let voxels = [Voxel::EMPTY; 18 * 18 * 18];
+    let mut visited = VisitedBuffer::new(voxels.len());
+    let mut buffer = PopBuffer::new();
 
-criterion_group!(benches, empty_mesh, sphere_mesh);
+    c.bench_function("greedy empty mesh small", |b| {
+        buffer.reset();
+        b.iter(|| {
+            greedy_quads::<18, 18, 18, 1, _>(&voxels, &mut visited, &mut buffer);
+        })
+    });
+}
+
+pub fn sphere_mesh_small(c: &mut Criterion) {
+    let mut voxels = [Voxel::EMPTY; 18 * 18 * 18];
+    let mut visited = VisitedBuffer::new(voxels.len());
+    let mut buffer = PopBuffer::new();
+
+    for i in 0..voxels.len() {
+        let position = ChunkShape::<18, 18, 18>::delinearize(i as u32);
+        let position = position.as_vec3();
+        let center = Vec3::splat(9.0);
+
+        if position.distance_squared(center) < 7.5 * 7.5 {
+            voxels[i] = Voxel::FULL;
+        }
+    }
+    c.bench_function("greedy sphere mesh small", |b| {
+        buffer.reset();
+        b.iter(|| {
+            greedy_quads::<18, 18, 18, 1, _>(&voxels, &mut visited, &mut buffer);
+        })
+    });
+}
+
+pub fn sphere_mesh_lod_small(c: &mut Criterion) {
+    let mut voxels = [Voxel::EMPTY; 18 * 18 * 18];
+    let mut visited = VisitedBuffer::new(voxels.len());
+    let mut buffer = PopBuffer::new();
+
+    for i in 0..voxels.len() {
+        let position = ChunkShape::<18, 18, 18>::delinearize(i as u32);
+        let position = position.as_vec3();
+        let center = Vec3::splat(9.0);
+
+        if position.distance_squared(center) < 7.5 * 7.5 {
+            voxels[i] = Voxel::FULL;
+        }
+    }
+
+    c.bench_function("greedy sphere mesh lod small", |b| {
+        buffer.reset();
+        b.iter(|| {
+            greedy_quads::<18, 18, 18, 4, _>(&voxels, &mut visited, &mut buffer);
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    empty_mesh,
+    sphere_mesh,
+    sphere_mesh_lod,
+    empty_mesh_small,
+    sphere_mesh_small,
+    sphere_mesh_lod_small
+);
 criterion_main!(benches);
