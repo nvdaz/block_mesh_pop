@@ -69,7 +69,7 @@ fn setup(
             max_lod: MAX_LOD as u32,
             period: CHUNK_SIZE * 8,
             easing: LodEasing::Sine,
-            buckets,
+            buckets: unsafe { std::mem::transmute(buckets) },
         }),
         WrappedMaterial(materials.add(StandardMaterial::from(Color::WHITE))),
     ));
@@ -92,7 +92,7 @@ fn generate_voxels() -> Vec<Voxel> {
     voxels
 }
 
-fn generate_visible_faces_mesh(voxels: &[Voxel]) -> ([usize; MAX_LOD], Mesh) {
+fn generate_visible_faces_mesh(voxels: &[Voxel]) -> ([u32; 8], Mesh) {
     let mut visited = VisitedBuffer::new(voxels.len());
     let mut buffer = PopBuffer::new();
 

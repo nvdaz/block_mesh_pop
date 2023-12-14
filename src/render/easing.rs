@@ -12,16 +12,15 @@ impl LodEasing {
     pub(crate) fn calculate(&self, distance: f32, period: u32, max_lod: u32) -> f32 {
         let period = period as f32;
         let max_lod = max_lod as f32;
-        let lod = match *self {
+        let distance = distance.clamp(0.0, period);
+        match *self {
             Self::Linear => max_lod / period * distance,
             Self::Quadratic => max_lod * (distance / period).powi(2),
             Self::Cubic => max_lod * (distance / period).powi(3),
             Self::Sine => {
                 max_lod - max_lod * (std::f32::consts::PI * distance / (2.0 * period)).cos()
             }
-        };
-
-        lod.clamp(0.0, max_lod - 1.0)
+        }
     }
 }
 

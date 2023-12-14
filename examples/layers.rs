@@ -62,8 +62,6 @@ fn setup(
     let (buckets, mesh) = generate_visible_faces_mesh(&voxels);
 
 
-    let new_buckets: [UVec4; 2] = unsafe { std::mem::transmute(buckets) };
-
     commands.spawn((
         meshes.add(mesh),
         SpatialBundle::INHERITED_IDENTITY,

@@ -45,9 +45,8 @@ fn vertex(vertex: Vertex) -> MeshVertexOutput {
 
         } else {
             let distance = lod_functions::mesh_distance();
-            current_position -= f32(face.n_sign) * vec3<f32>(face.n_axis) / (clamp(f32(period) - distance, 1.0, 10000.0) * pow(10.0, f32(((vertex.index / 4u) % 4u) + 1u)));
+            current_position -= f32(face.n_sign) * vec3<f32>(face.n_axis) * clamp(lod % 1.0, 0.1, 0.25) * (f32(((vertex.index / 4u) % 4u) + 1u) * 2.0) / 100.0;
             position = mix(current_position, next_position, 1.0 - (lod % 1.0) / 0.25);
-            // very slightly reduce the size of quads that are being removed
         }
 
 

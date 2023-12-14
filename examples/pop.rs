@@ -177,7 +177,7 @@ fn update_camera(
     let boost: f32 = if keys.pressed(KeyCode::ShiftLeft) {
         boost_mult
     } else {
-        1.
+        1.0
     };
 
     let mut delta = Vec2::ZERO;

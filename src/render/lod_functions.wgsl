@@ -106,10 +106,6 @@ fn position_into_minimum(index: u32, position: vec3<f32>, normal: vec3<f32>) -> 
         position -= vec3<f32>(face.v_axis);
     }
 
-
-    // position += vec3<f32>(face.u_axis);
-    // position += vec3<f32>(face.v_axis);
-
     return position;
 }
 
@@ -159,21 +155,22 @@ const pi = 3.14159265358979323846264338327950288;
 
 fn calculate_lod() -> f32 {
     let distance = mesh_distance();
+    let clamped_distance = clamp(distance, 0.0, f32(period));
 
 #ifdef EASING_LINEAR
-    return clamp(f32(max_lod) / f32(period) * distance, 0.0, f32(max_lod));
+    return f32(max_lod) / f32(period) * clamped_distance);
 #endif
 
 #ifdef EASING_QUADRATIC
-    return clamp(f32(max_lod) * pow(distance / f32(period), 2.0), 0.0, f32(max_lod));
+    return f32(max_lod) * pow(clamoed_distance / f32(period), 2.0);
 #endif
 
 #ifdef EASING_CUBIC
-    return clamp(f32(max_lod) * pow(distance / f32(period), 3.0), 0.0, f32(max_lod));
+    return f32(max_lod) * pow(clamped_distance / f32(period), 3.0);
 #endif
 
 #ifdef EASING_SINE
-    return clamp(f32(max_lod) - f32(max_lod) * cos(pi * distance / (2.0 * f32(period))), 0.0, f32(max_lod));
+    return f32(max_lod) - f32(max_lod) * cos(pi * clamped_distance / (2.0 * f32(period)));
 #endif
 }
 
